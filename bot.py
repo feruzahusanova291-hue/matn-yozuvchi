@@ -384,6 +384,13 @@ def start_health_check_server() -> None:
 
 
 def main() -> None:
+    # Python 3.12+ va 3.14+ da get_event_loop() xatolik bermasligi uchun
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
     # Render Web Service portini tinglash (agar PORT o'zgaruvchisi berilgan bo'lsa)
     start_health_check_server()
 
