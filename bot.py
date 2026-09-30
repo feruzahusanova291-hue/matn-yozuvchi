@@ -15,8 +15,10 @@ Ishga tushirish:
 """
 
 import asyncio
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import logging
 import os
+import threading
 import time
 
 import requests
@@ -348,11 +350,43 @@ async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 # --------------------------------------------------------------------------
+# Render / Web Service uchun sog'liqni tekshirish (Health check server)
+# --------------------------------------------------------------------------
+
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"Bot faol ishlamoqda!")
+
+    def log_message(self, format: str, *args: object) -> None:
+        pass  # Render pings logni to'ldirib yubormasligi uchun
+
+
+def start_health_check_server() -> None:
+    port_str = os.getenv("PORT")
+    if port_str:
+        try:
+            port = int(port_str)
+            server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            logger.info("Render uchun Web server %s-portda ishga tushdi.", port)
+        except Exception as exc:
+            logger.warning("HTTP serverni ishga tushirishda ogohlantirish: %s", exc)
+
+
+# --------------------------------------------------------------------------
 # Ishga tushirish
 # --------------------------------------------------------------------------
 
 
 def main() -> None:
+    # Render Web Service portini tinglash (agar PORT o'zgaruvchisi berilgan bo'lsa)
+    start_health_check_server()
+
     request = HTTPXRequest(
         connect_timeout=30.0,
         read_timeout=30.0,
@@ -377,6 +411,11 @@ if __name__ == "__main__":
     except (KeyboardInterrupt, SystemExit):
         logger.info("Bot to'xtatildi.")
     except Exception:
+        import sys
         import traceback
         traceback.print_exc()
-        input("\n[DEBUG] Dastur tugadi. Chiqish uchun Enter bosing...")
+        if sys.stdin and sys.stdin.isatty():
+            try:
+                input("\n[DEBUG] Dastur tugadi. Chiqish uchun Enter bosing...")
+            except Exception:
+                pass
